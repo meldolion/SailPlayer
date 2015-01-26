@@ -2,6 +2,7 @@
 #define AUDIOPLAYER_H
 
 #include <QObject>
+#include <QList>
 #include <gst/gst.h>
 #include "AudioResource.h"
 #include "AudioPlayerState.h"
@@ -42,6 +43,10 @@ namespace Audio
 		GstElement* _source;
 		GstElement* _decoder;
 		GstElement* _equalizer;
+		GstElement* _deinterleave;
+		GstElement* _volumeL;
+		GstElement* _volumeR;
+		GstElement* _interleave;
 		GstElement* _sink;
 
 		AudioPlayerState _currentState;
@@ -53,12 +58,20 @@ namespace Audio
 		static int EqualizerBandsNumber;
 		GstEqualizerBandState _equalizerData[];
 
+		// Channel volume
+
+		QList<GstElement> _audioSliders;
+
 		// Callbacks
 
-		static void OnPadAdded(GstElement* element, GstPad* pad, gpointer data);
+		static void OnDecoderPadAdded(GstElement* element, GstPad* pad, gpointer data);
+		static void OnDeinterleavePadAdded(GstElement* element, GstPad* pad, gpointer data);
+		static void OnInterleavePadAdded(GstElement* element, GstPad* pad, gpointer data);
+
 		static gboolean OnBusCall(GstBus* bus, GstMessage* msg, gpointer user_data);
 
 		void SetEqualizerData();
+		void SetPan();
 	};
 }
 

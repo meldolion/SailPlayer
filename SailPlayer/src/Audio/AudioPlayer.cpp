@@ -46,7 +46,7 @@ namespace Audio
 		}
 	}
 
-	void AudioPlayer::OnPadAdded(GstElement* element, GstPad* pad, gpointer data)
+	void AudioPlayer::OnDecoderPadAdded(GstElement* element, GstPad* pad, gpointer data)
 	{
 		Q_UNUSED(element);
 
@@ -55,6 +55,40 @@ namespace Audio
 		GstPad* sinkpad = gst_element_get_static_pad(sink, "sink");
 		gst_pad_link(pad, sinkpad);
 		gst_object_unref(sinkpad);
+	}
+
+	void AudioPlayer::OnDeinterleavePadAdded(GstElement* element, GstPad* pad, gpointer data)
+	{
+		QList<GstElement>* audioSliders = (QList<GstElement>*)data;
+		GstElement* volume = gst_element_factory_make("volume", NULL);
+		GstPad* newPad = gst_element_get_static_pad(element, "src_%u");
+
+		if(gst_pad_is_linked(newPad))
+		{
+			g_warning("We are already linked. Ignoring.");
+			return;
+		}
+
+		gst_pad_link(pad, newPad);
+		gst_object_unref(newPad);
+		audioSliders->append(&volume);
+	}
+
+	void AudioPlayer::OnInterleavePadAdded(GstElement* element, GstPad* pad, gpointer data)
+	{
+		static int currentSlider = 0;
+		QList<GstElement>* audioSliders = (QList<GstElement>*)data;
+		GstPad* newPad = gst_element_get_request_pad (element, "sink_%d");
+
+		if(gst_pad_is_linked(newPad))
+		{
+			g_warning("We are already linked. Ignoring.");
+			return;
+		}
+
+		gst_pad_link(audioSliders[currentSlider], newPad);
+		gst_object_unref(newPad);
+		currentSlider++;
 	}
 
 	gboolean AudioPlayer::OnBusCall(GstBus* bus, GstMessage* msg, gpointer user_data)
@@ -93,32 +127,48 @@ namespace Audio
 		_source = gst_element_factory_make("filesrc", NULL);
 		_decoder = gst_element_factory_make("decodebin", NULL);
 		_equalizer = gst_element_factory_make("equalizer-nbands", NULL);
+		_deinterleave = gst_element_factory_make("deinterleave", NULL);
+		_volumeL = gst_element_factory_make("volume", "volume-l");
+		_volumeR = gst_element_factory_make("volume", "volume-r");
+		_interleave = gst_element_factory_make("interleave", NULL);
 		_sink = gst_element_factory_make("autoaudiosink", NULL);
 
-		if (!_pipeline || !_source || !_decoder || !_equalizer || !_sink)
+		if (!_pipeline || !_source || !_decoder || !_equalizer || !_deinterleave || !_volumeL || !_volumeR || !_interleave || !_sink)
 		{
 			g_warning("Failed to initialize elements!");
 			return false;
 		}
 
+		// Bus messages
+
 		GstBus* bus = gst_pipeline_get_bus(GST_PIPELINE(_pipeline));
 		gst_bus_add_watch(bus, OnBusCall, NULL);
 		gst_object_unref(bus);
 
-		gst_bin_add_many(GST_BIN(_pipeline), _source, _decoder, _equalizer, _sink, NULL);
+		// Registering plugings
+		gst_bin_add_many(GST_BIN(_pipeline), _source, _decoder, _equalizer, _deinterleave, _volumeL, _volumeR, _interleave, _sink, NULL);
 
-		if (!gst_element_link(_source, _decoder) || !gst_element_link(_equalizer, _sink))
+		// Linking static pads
+
+		if (!gst_element_link(_source, _decoder) || !gst_element_link_many(_equalizer, _deinterleave, NULL) || !gst_element_link_many(_interleave, _sink, NULL))
 		{
 			g_warning("Failed to link elements!");
 			return false;
 		}
 
-		g_signal_connect(_decoder, "pad-added", G_CALLBACK(OnPadAdded), _equalizer);
+		// Linking dynamic pads
+
+		g_signal_connect(_decoder, "pad-added", G_CALLBACK(OnDeinterleavePadAdded), _equalizer);
+		g_signal_connect(_deinterleave, "pad-added", G_CALLBACK(OnDecoderPadAdded), &_audioSliders);
+		g_signal_connect(_interleave, "pad-added", G_CALLBACK(OnDecoderPadAdded), &_audioSliders);
+
+		// Initializing plugins
 
 		g_object_set(G_OBJECT(_source), "location", "/home/nemo/Music/Passage.ogg", NULL);
-		g_object_set (G_OBJECT (_equalizer), "num-bands", EqualizerBandsNumber, NULL);
+		g_object_set(G_OBJECT (_equalizer), "num-bands", EqualizerBandsNumber, NULL);
 
 		SetEqualizerData();
+		SetPan();
 
 		return true;
 	}
@@ -167,5 +217,11 @@ namespace Audio
 
 			g_object_unref(G_OBJECT(band));
 		}
+	}
+
+	void AudioPlayer::SetPan()
+	{
+//		g_object_new (GST_TYPE_OSSMIXER_TRACK, NULL);
+//		gst_mixer_set_volume(_volume, );
 	}
 }
