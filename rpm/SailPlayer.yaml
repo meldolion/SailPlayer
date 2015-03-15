@@ -17,7 +17,7 @@ PkgConfigBR:
   - Qt5Core
   - Qt5Qml
   - Qt5Quick
-  - gstreamer-1.0
+  - gstreamer-0.10
   - audioresource
   - taglib
 
