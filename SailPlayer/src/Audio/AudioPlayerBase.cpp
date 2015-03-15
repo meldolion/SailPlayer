@@ -164,6 +164,8 @@ namespace Audio
 		// Subsribe to next track gapless playing handling
 		g_signal_connect(_pipeline, "about-to-finish", G_CALLBACK(OnPipelineAboutToFinish), this);
 
+//		g_signal_connect(_pipeline, "stream-start", G_CALLBACK(OnTest), this);
+
 		return true;
 	}
 
@@ -226,8 +228,23 @@ namespace Audio
 	{
 		Q_UNUSED(bus);
 
+		qDebug() << gst_message_type_get_name(GST_MESSAGE_TYPE (msg));
+
 		switch (GST_MESSAGE_TYPE (msg))
 		{
+			case GST_MESSAGE_STATE_CHANGED:
+			{
+//				AudioPlayerBase* player = static_cast<AudioPlayerBase*>(userData);
+//				player->OnStateChanged(msg);
+				break;
+			}
+
+			case GST_MESSAGE_DURATION:
+			{
+				static_cast<AudioPlayerBase*>(userData)->OnStreamStartInternal(msg);
+				break;
+			}
+
 			case GST_MESSAGE_EOS:
 			{
 				static_cast<AudioPlayerBase*>(userData)->OnEndOfStream();
@@ -240,12 +257,39 @@ namespace Audio
 				break;
 			}
 
-//			case GST_EVENT_STREAM_START:
-//			{
-//				qDebug() << "st";
-//				static_cast<AudioPlayerBase*>(userData)->OnStreamStart();
-//				break;
-//			}
+			case GST_MESSAGE_STREAM_STATUS:
+			{
+				GstStreamStatusType type;
+				GstElement* owner;
+				gchar *path;
+
+
+				gst_message_parse_stream_status (msg,
+												 &type,
+												 &owner);
+
+				qDebug() << type;
+
+//				g_message ("type:   %d", type);
+//					  path = gst_object_get_path_string (GST_MESSAGE_SRC (msg));
+//					  g_message ("source: %s", path);
+//					  g_free (path);
+					  path = gst_object_get_path_string (GST_OBJECT (owner));
+					  g_message ("owner:  %s", path);
+
+
+				QString path2 = QString(path);
+				g_free (path);
+
+
+				static bool a = false;
+				if(path2.startsWith("/GstPlayBin2:playbin20/GstURIDecodeBin:uridecodebin") && type == GST_STREAM_STATUS_TYPE_ENTER && a == false)
+				{
+					a = true;
+					static_cast<AudioPlayerBase*>(userData)->OnStreamStartInternal(msg);
+				}
+				break;
+			}
 
 			case GST_MESSAGE_ERROR:
 			{
@@ -287,5 +331,24 @@ namespace Audio
 
 			_pausedByResourceBlock = true;
 		}
+	}
+
+	void AudioPlayerBase::OnTest(GstElement* pipeline, gpointer userData)
+	{
+			qDebug() << "test";
+	}
+
+	void AudioPlayerBase::OnStateChanged(GstMessage* msg)
+	{
+//		GstState state = GST_STATE(_pipeline);
+//		if(GST_MESSAGE_SRC (msg) == GST_OBJECT (_pipeline))
+//			qDebug() << state;
+	}
+
+	void AudioPlayerBase::OnStreamStartInternal(GstMessage* msg)
+	{
+			qDebug() << "stream";
+
+		OnStreamStart();
 	}
 }

@@ -1,6 +1,7 @@
 #include <QObject>
 
 #include "AudioPlayer.hpp"
+#include <QDebug>
 
 const int MillisecondsConvertion = 1000000;
 
@@ -82,7 +83,10 @@ namespace Audio
 	void AudioPlayer::OnStreamStart()
 	{
 		if(_isStreamFromNextTrack)
+		{
+			qDebug() << "set";
 			SetCurrentPositionsFromNextTrack();
+		}
 
 		emit CurrentPositionUpdated(0);
 		emit CurrentDurationUpdated(GetCurrentDuration());
@@ -104,6 +108,7 @@ namespace Audio
 
 		if(!_nextTrackFilePath.isNull())
 		{
+			qDebug() << "calc";
 			CalculateNeedToSetCurrentPosition();
 			SetFileToPlayFromNextTrack();
 		}

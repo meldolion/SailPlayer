@@ -72,6 +72,10 @@ namespace Audio
 		static gboolean OnBusCall(GstBus* bus, GstMessage* msg, gpointer userData);
 		static void OnPipelineAboutToFinish(GstElement* pipeline, gpointer userData);
 
+		void OnStreamStartInternal(GstMessage* msg);
+		void OnStateChanged(GstMessage* msg);
+		static void OnTest(GstElement* pipeline, gpointer userData);
+
 	private slots:
 		void OnAudioResourceAquireStateChanged(bool acquired);
 	};
